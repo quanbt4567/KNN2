@@ -1,0 +1,299 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Hamilton Cycle Checker</title>
+    <style>
+        canvas {
+            border: 1px solid #000;
+            margin-top: 20px;
+        }
+        .controls {
+            margin: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            flex-wrap: wrap;
+        }
+        input, button {
+            padding: 8px;
+            margin: 5px;
+            font-size: 14px;
+        }
+        #result {
+            color: red;
+            font-weight: bold;
+            margin-left: 10px;
+        }
+        .answer-path {
+            color: #009900;
+            font-weight: bold;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <input type="number" id="nodeCount" min="2" max="10" value="5" placeholder="Số nút (2-10)">
+        <button onclick="generateGraph()">Tạo đồ thị</button>
+        <button onclick="showHamiltonCycle()">Hiện đáp án</button>
+        <br>
+        <input type="text" id="pathInput" placeholder="Nhập chu trình (VD: ABCA)" style="width: 200px;">
+        <button onclick="checkHamiltonPath()">Kiểm tra</button>
+        <div id="result"></div>
+        <div id="answer" class="answer-path"></div>
+    </div>
+    <canvas id="graphCanvas" width="800" height="600"></canvas>
+
+    <script>
+        let currentEdges = [];
+        let currentNodes = [];
+        let hamiltonCycle = [];
+        let userPath = [];
+
+        function generateGraph() {
+            const canvas = document.getElementById('graphCanvas');
+            const ctx = canvas.getContext('2d');
+            const nodeCount = parseInt(document.getElementById('nodeCount').value);
+            
+            // Reset data
+            currentEdges = [];
+            currentNodes = [];
+            hamiltonCycle = [];
+            userPath = [];
+            document.getElementById('result').textContent = '';
+            document.getElementById('answer').textContent = '';
+            
+            // Clear canvas
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Generate nodes
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height / 2;
+            const radius = Math.min(canvas.width, canvas.height) * 0.4;
+            
+            for(let i = 0; i < nodeCount; i++) {
+                const angle = (i * 2 * Math.PI) / nodeCount;
+                currentNodes.push({
+                    label: String.fromCharCode(65 + i),
+                    x: centerX + radius * Math.cos(angle),
+                    y: centerY + radius * Math.sin(angle)
+                });
+            }
+            
+            // Generate edges
+            const maxEdges = nodeCount * 2;
+            const existingEdges = new Set();
+            
+            while(currentEdges.length < maxEdges) {
+                const from = Math.floor(Math.random() * nodeCount);
+                let to = Math.floor(Math.random() * nodeCount);
+                
+                if(from === to) continue;
+                const edgeKey = `${Math.min(from, to)}-${Math.max(from, to)}`;
+                
+                if(!existingEdges.has(edgeKey)) {
+                    existingEdges.add(edgeKey);
+                    currentEdges.push({
+                        from: currentNodes[from],
+                        to: currentNodes[to]
+                    });
+                }
+            }
+            
+            drawGraph();
+        }
+
+        function drawGraph() {
+            const canvas = document.getElementById('graphCanvas');
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // Draw edges
+            ctx.strokeStyle = '#ddd';
+            ctx.lineWidth = 1;
+            currentEdges.forEach(edge => {
+                ctx.beginPath();
+                ctx.moveTo(edge.from.x, edge.from.y);
+                ctx.lineTo(edge.to.x, edge.to.y);
+                ctx.stroke();
+            });
+
+            // Draw Hamilton cycle
+            if(hamiltonCycle.length > 0) {
+                ctx.strokeStyle = '#ff00ff';
+                ctx.lineWidth = 3;
+                for(let i = 0; i < hamiltonCycle.length; i++) {
+                    const from = hamiltonCycle[i];
+                    const to = hamiltonCycle[(i+1) % hamiltonCycle.length];
+                    ctx.beginPath();
+                    ctx.moveTo(from.x, from.y);
+                    ctx.lineTo(to.x, to.y);
+                    ctx.stroke();
+                }
+            }
+
+            // Draw user path
+            if(userPath.length > 1) {
+                ctx.strokeStyle = '#009900';
+                ctx.lineWidth = 2;
+                for(let i = 0; i < userPath.length - 1; i++) {
+                    ctx.beginPath();
+                    ctx.moveTo(userPath[i].x, userPath[i].y);
+                    ctx.lineTo(userPath[i+1].x, userPath[i+1].y);
+                    ctx.stroke();
+                }
+            }
+
+            // Draw nodes
+            ctx.lineWidth = 1;
+            currentNodes.forEach(node => {
+                ctx.beginPath();
+                ctx.arc(node.x, node.y, 20, 0, Math.PI * 2);
+                ctx.fillStyle = '#fff';
+                ctx.fill();
+                ctx.strokeStyle = '#000';
+                ctx.stroke();
+                
+                ctx.fillStyle = '#000';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(node.label, node.x, node.y);
+            });
+        }
+
+        function checkHamiltonPath() {
+            const input = document.getElementById('pathInput').value.toUpperCase();
+            const resultElement = document.getElementById('result');
+            userPath = [];
+            
+            // Basic validation
+            if(input.length < 4) {
+                showError("Chuỗi quá ngắn!");
+                return;
+            }
+            
+            if(input[0] !== input[input.length-1]) {
+                showError("Điểm đầu và cuối không trùng nhau!");
+                return;
+            }
+            
+            // Convert input to nodes
+            const pathNodes = [];
+            for(const char of input) {
+                const node = currentNodes.find(n => n.label === char);
+                if(!node) {
+                    showError(`Nút ${char} không tồn tại!`);
+                    return;
+                }
+                pathNodes.push(node);
+            }
+            
+            // Check node visits
+            const visited = new Set();
+            for(let i = 0; i < pathNodes.length-1; i++) {
+                if(visited.has(pathNodes[i].label) && i !== pathNodes.length-1) {
+                    showError(`Nút ${pathNodes[i].label} đi qua nhiều lần!`);
+                    return;
+                }
+                visited.add(pathNodes[i].label);
+            }
+            
+            // Check all nodes visited
+            if(visited.size !== currentNodes.length) {
+                showError(`Thiếu nút: ${currentNodes.filter(n => !visited.has(n.label)).map(n => n.label).join(', ')}`);
+                return;
+            }
+            
+            // Check edges exist
+            for(let i = 0; i < pathNodes.length-1; i++) {
+                const from = pathNodes[i];
+                const to = pathNodes[i+1];
+                if(!edgeExists(from, to)) {
+                    showError(`Không có cạnh nối ${from.label}-${to.label}!`);
+                    return;
+                }
+            }
+            
+            // Valid path
+            userPath = pathNodes;
+            resultElement.textContent = "✅ Chu trình Hamilton hợp lệ!";
+            resultElement.style.color = '#009900';
+            drawGraph();
+        }
+
+        function showHamiltonCycle() {
+            hamiltonCycle = [];
+            document.getElementById('result').textContent = '';
+            document.getElementById('answer').textContent = '';
+
+            const path = [];
+            const visited = new Array(currentNodes.length).fill(false);
+            
+            for(let start = 0; start < currentNodes.length; start++) {
+                path.length = 0;
+                visited.fill(false);
+                if(backtrack(start, start, visited, path, 0)) {
+                    hamiltonCycle = [...path, path[0]];
+                    document.getElementById('answer').textContent = 
+                        `Chu trình Hamilton: ${hamiltonCycle.map(n => n.label).join(' → ')}`;
+                    drawGraph();
+                    return;
+                }
+            }
+            
+            document.getElementById('result').textContent = 'Không tìm thấy chu trình Hamilton!';
+            document.getElementById('result').style.color = 'red';
+        }
+
+        function backtrack(start, current, visited, path, count) {
+            visited[current] = true;
+            path.push(currentNodes[current]);
+            count++;
+
+            if(count === currentNodes.length) {
+                if(edgeExists(currentNodes[current], currentNodes[start])) {
+                    return true;
+                }
+            }
+
+            const neighbors = getNeighbors(currentNodes[current]);
+            for(const neighbor of neighbors) {
+                const index = currentNodes.indexOf(neighbor);
+                if(!visited[index] || (count === currentNodes.length && index === start)) {
+                    if(backtrack(start, index, visited, path, count)) {
+                        return true;
+                    }
+                }
+            }
+
+            visited[current] = false;
+            path.pop();
+            return false;
+        }
+
+        function edgeExists(a, b) {
+            return currentEdges.some(e => 
+                (e.from === a && e.to === b) || 
+                (e.from === b && e.to === a)
+            );
+        }
+
+        function getNeighbors(node) {
+            return currentEdges
+                .filter(edge => edge.from === node || edge.to === node)
+                .map(edge => edge.from === node ? edge.to : edge.from);
+        }
+
+        function showError(message) {
+            const resultElement = document.getElementById('result');
+            resultElement.textContent = `❌ ${message}`;
+            resultElement.style.color = 'red';
+            userPath = [];
+            drawGraph();
+        }
+
+        // Initial generation
+        generateGraph();
+    </script>
+</body>
+</html>
